@@ -39,17 +39,31 @@ import org.json.simple.parser.JSONParser;
 
 
 public class Part2 {
+
     //    creating a final variable for the USER_AGENT
     public final String USER_AGENT="Mozilla/5.0";
 
-    //    Lists for saving approved and commented users on the given pull request
+
 
 
     Scanner user_Input= new Scanner(System.in);
+
     String productName; // to store the product name
+    String location= System.getProperty("user.dir")+"/";        // to get the current location 
+    String pullURL;
+    String urlReviews;
+    String pullOutPutFile="pullOutput.json";
+    String pullReviewOutPutFile="pullReviewOutPutFile.json";
+    String authorOfPR;
     int pullRequestNo;  //to get the PR number
 
+    BufferedReader bufferedReader=null;
+    StringBuffer stringB= null;
+    BufferedWriter bufferedWriter= null;
+    JSONParser parser= new JSONParser();
 
+
+    //    Lists for saving approved and commented users on the given pull request
     ArrayList <String> apprvedUsersList= new ArrayList<String>();
     ArrayList <String> commentedUsersList = new ArrayList<String>();
 
@@ -57,26 +71,21 @@ public class Part2 {
 
         Part2 part2Object= new Part2();
 
-        part2Object.sendGET();
+        part2Object.getUserInput();
+        part2Object.setURLs();
+
+        part2Object.getReviewsForPR();
+        part2Object.getAuthorOfPR();
 
         part2Object.printResults();
 
         part2Object.checkPRMergedOrNot();
 
-
-
     }
 
-    //    Calls the github api and interprete the given outputs
 
-    public void sendGET() throws Exception{
-
-        BufferedReader bufferedReader=null;
-        StringBuffer stringB= null;
-        BufferedWriter bufferedWriter= null;
-        JSONParser parser= new JSONParser();
-
-        String location= System.getProperty("user.dir");        // to get the current location 
+    //    ============= getting the user input======================
+    public void getUserInput(){
 
         System.out.println("Enter the product name: ");
         productName=user_Input.next();
@@ -84,31 +93,37 @@ public class Part2 {
         System.out.println("Enter the pull request no: ");
         pullRequestNo= user_Input.nextInt();
 
-        String url="https://api.github.com/repos/wso2/"+productName+"/pulls/"+pullRequestNo+"/reviews";
+    }
+
+    //   ================ Set URLs==========================
+
+    public void setURLs(){
+        pullURL="https://api.github.com/repos/wso2/"+productName+"/pulls/"+pullRequestNo;
+        urlReviews="https://api.github.com/repos/wso2/"+productName+"/pulls/"+pullRequestNo+"/reviews";
 
 
+    }
+
+    //============= getting the name of the author of the PR =============================
+
+    public void getJSONAndOutputToAFile(String url,String file,boolean review) throws Exception{
 
 
         try{
-            URL urlObjct= new URL(url);
-            //        URLConnection urlCon= urlObjct.openConnection();         // this returns a URLConnectio object
 
-            //        to get httpsURLConnection we need to cast in here
-            HttpsURLConnection httpsURLCon= (HttpsURLConnection)urlObjct.openConnection();
+            URL urlObject= new URL(url);
 
-            //        setting the request method
+            HttpsURLConnection httpsURLCon=(HttpsURLConnection)urlObject.openConnection();
+
             httpsURLCon.setRequestMethod("GET");
 
-            //         setting the request property to the request header
             httpsURLCon.setRequestProperty("User-Agent", USER_AGENT);
 
-            // sending the accept header for requesting the correct media type as the api is still available only for preview
-            httpsURLCon.setRequestProperty("Accept", "application/vnd.github.black-cat-preview+json");
+            //as only the accept header is need for the review api as it is still in preview mode
+            if (review== true){
 
-            //        for getting the response code
-            int responseCode= httpsURLCon.getResponseCode();
-
-            System.out.println("the response code "+responseCode);
+                httpsURLCon.setRequestProperty("Accept", "application/vnd.github.black-cat-preview+json");
+            }
 
             bufferedReader = new BufferedReader(new InputStreamReader(httpsURLCon.getInputStream()));
 
@@ -118,10 +133,11 @@ public class Part2 {
 
             while ((inputLine=bufferedReader.readLine()) != null){
                 stringB.append(inputLine);
-
-
             }
 
+            bufferedWriter= new BufferedWriter(new FileWriter(location+file));
+
+            bufferedWriter.write(stringB.toString());   //toString() is used to convert the sequence into a string
 
         }
 
@@ -133,45 +149,28 @@ public class Part2 {
         }
 
         finally{
-            //            releasing the resources
-            if(bufferedReader !=null){
+            if(bufferedReader != null){
                 bufferedReader.close();
-
-
             }
-        }
 
-
-        //===================Reading the output of the api request========================================
-        //printing the StirngBuffer
-        //        System.out.println("json returned: "+stringB.toString());
-        //printing the output from the api to a json file
-
-
-
-
-        try{
-
-            bufferedWriter= new BufferedWriter(new FileWriter(location+"/output.json"));
-            bufferedWriter.write(stringB.toString());   //toString() is used to convert the sequence into a string
-        }
-
-        catch(IOException ioE1){
-            ioE1.printStackTrace();
-        }
-
-        finally{
-            //closing the bufferedWritter object
-            if(bufferedWriter != null){
+            if (bufferedWriter != null){
                 bufferedWriter.close();
             }
+
         }
 
+    }
 
-        //================reading the json file thus saved=======================================================
+    //========== get reviews for the PR ==============================================================================
+
+    public void getReviewsForPR() throws Exception{
+
+        getJSONAndOutputToAFile(urlReviews,pullReviewOutPutFile,true);
+
+        //-------------------reading the json file thus saved------------------------------------------------
         try{
 
-            JSONArray jsonArray= (JSONArray)parser.parse(new FileReader(location+"/output.json"));
+            JSONArray jsonArray= (JSONArray)parser.parse(new FileReader(location+pullReviewOutPutFile));
 
 
             for (int i=0;i<jsonArray.size();i++){
@@ -195,7 +194,6 @@ public class Part2 {
 
                 }
 
-
             }
 
         }
@@ -204,39 +202,57 @@ public class Part2 {
 
         }
 
+    }
+
+    //  =================== getting the author of the PR ==================================
+    public void getAuthorOfPR() throws Exception {
+
+        getJSONAndOutputToAFile(pullURL,pullOutPutFile,false);
+
+        //-------------------reading the json file thus saved------------------------------------------------
+
+        try{
+            JSONObject jsonObject=(JSONObject)parser.parse(new FileReader (location+pullOutPutFile));
+            JSONObject userDetailsJSONObject= (JSONObject) jsonObject.get("user");
+            authorOfPR= (String)userDetailsJSONObject.get("login");
+
+        }
+        catch(Exception e){
+
+            e.printStackTrace();
+        }
 
     }
 
-    //    to check whether the PR is merged or not
+    //========================to check whether the PR is merged or not=================================================
     public void checkPRMergedOrNot(){
 
         String toCheckPRMergedOrNot="https://api.github.com/repos/wso2/"+productName+"/pulls/"+pullRequestNo+"/merge";
 
-        try{URL urlObjct= new URL(toCheckPRMergedOrNot);
-        //        URLConnection urlCon= urlObjct.openConnection();         // this returns a URLConnectio object
+        try{
+            URL urlObjct= new URL(toCheckPRMergedOrNot);
 
-        //        to get httpsURLConnection we need to cast in here
-        HttpsURLConnection httpsURLCon= (HttpsURLConnection)urlObjct.openConnection();
+            //to get httpsURLConnection we need to cast in here
+            HttpsURLConnection httpsURLCon= (HttpsURLConnection)urlObjct.openConnection();
 
-        //        setting the request method
-        httpsURLCon.setRequestMethod("GET");
+            //setting the request method
+            httpsURLCon.setRequestMethod("GET");
 
-        //         setting the request property to the request header
-        httpsURLCon.setRequestProperty("User-Agent", USER_AGENT);
+            //setting the request property to the request header
+            httpsURLCon.setRequestProperty("User-Agent", USER_AGENT);
 
-        //        for getting the response code
-        int responseCode= httpsURLCon.getResponseCode();
+            //for getting the response code
+            int responseCode= httpsURLCon.getResponseCode();
 
-        if(responseCode== 204){
-            System.out.println("This PR is merged");
-        }
-        else if (responseCode == 404){
-            System.out.println("This PR is not merged");
-        }
-        else{
-            System.out.println("No details about the PR merge status");
-        }
-
+            if(responseCode== 204){
+                System.out.println("This PR is merged");
+            }
+            else if (responseCode == 404){
+                System.out.println("This PR is not merged");
+            }
+            else{
+                System.out.println("No details about the PR merge status");
+            }
 
         }
 
@@ -247,23 +263,19 @@ public class Part2 {
             ioE.printStackTrace();
         }
 
-
     }
 
-
-
-    //  printing the arraylist elements
+    //============ printing the arraylist elements========================================================
 
     public void printResults(){
 
+        System.out.println("Author of the PR : "+authorOfPR+"\n");
 
         System.out.println("The users who approved the Pull request");
         System.out.println(apprvedUsersList);
 
-        System.out.println("The users who commented on the Pull request");
-        System.out.println(commentedUsersList);
-
-
+        System.out.println("\nThe users who commented on the Pull request");
+        System.out.println(commentedUsersList+"\n");
 
     }
 
