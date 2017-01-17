@@ -67,21 +67,7 @@ public class Part2 {
     ArrayList <String> apprvedUsersList= new ArrayList<String>();
     ArrayList <String> commentedUsersList = new ArrayList<String>();
 
-    public static void main(String[] args) throws Exception{
-
-        Part2 part2Object= new Part2();
-
-        part2Object.getUserInput();
-        part2Object.setURLs();
-
-        part2Object.getReviewsForPR();
-        part2Object.getAuthorOfPR();
-
-        part2Object.printResults();
-
-        part2Object.checkPRMergedOrNot();
-
-    }
+    
 
 
     //    ============= getting the user input======================
